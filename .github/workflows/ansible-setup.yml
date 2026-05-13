@@ -193,6 +193,9 @@ jobs:
             done
             done
 
+      - name: Grow root partition and filesystem
+        run: sg libvirt -c 'make ansible-grow-rootfs'
+
       - name: Push fencing key to VMs
         run: |
           set -euxo pipefail
