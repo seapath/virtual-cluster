@@ -13,7 +13,16 @@ on:
         required: false
         default: "main"
         type: string
-
+      image_url:
+        description: "URL of the SEAPATH hypervisor image to fetch"
+        required: false
+        default: "https://releases.seapath.org/builds/test-virtual-cluster/seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2"
+        type: string
+      image_filename:
+        description: "Name of the SEAPATH hypervisor image"
+        required: false
+        default: "seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2"
+        type: string
 jobs:
   ansible-setup:
     runs-on: ubuntu-24.04
@@ -116,9 +125,12 @@ jobs:
           sudo virsh pool-list --all
 
       - name: Fetch base image from S3
+        env:
+          IMAGE_URL: ${{ inputs.image_url }}
+          IMAGE_FILENAME: ${{ inputs.image_filename }}
         run: |
           mkdir -p images
-          wget "https://releases.seapath.org/builds/test-virtual-cluster/seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2" \
+          wget $IMAGE_URL \
           -O "images/$IMAGE_FILENAME"
           sudo chmod a+r "images/$IMAGE_FILENAME"
 
