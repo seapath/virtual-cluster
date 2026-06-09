@@ -31,6 +31,9 @@ on:
 jobs:
   ansible-setup:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: virtual-cluster
     timeout-minutes: 90
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
@@ -148,7 +151,7 @@ jobs:
       - name: Write terraform.tfvars
         run: |
           cat > terraform/terraform.tfvars <<EOF
-          base_image_path = "${{ github.workspace }}/images/${{ inputs.image_filename }}"
+          base_image_path = "${{ github.workspace }}/virtual-cluster/images/${{ inputs.image_filename }}"
           EOF
           cat terraform/terraform.tfvars
 
