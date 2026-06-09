@@ -1,7 +1,7 @@
 name: ansible-setup
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
       ansible_repo:
         description: "SEAPATH Ansible repo URL to clone"
