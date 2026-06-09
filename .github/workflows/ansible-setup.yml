@@ -39,7 +39,10 @@ jobs:
       TF_IN_AUTOMATION: "1"
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          repository: seapath/virtual-cluster
+          ref: main
+          path: virtual-cluster
       - name: Install system dependencies
         run: |
           set -euxo pipefail
