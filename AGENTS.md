@@ -1,129 +1,35 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code when working in this repository.
+## Repo Shape
+- This repo provisions a 3-node SEAPATH virtual cluster with Terraform/libvirt and drives setup through the external `seapath/ansible` repo.
+- The Makefile default for the Ansible checkout is `./ansible`, not a sibling directory; override with `ANSIBLE_REPO=/path/to/ansible`.
+- Local runtime files are intentionally gitignored: `terraform/terraform.tfvars`, Terraform state/cache, `./ansible/`, qcow2/wic/raw images, and `keys/fence_virt.key`.
+- Any commit in this repo must be signed off with `git commit -s`.
 
-## Project Overview
+## Provisioning Flow
+- Create `terraform/terraform.tfvars` from `terraform.tfvars.example`; `base_image_path` is required and must point to a SEAPATH qcow2 with an `ansible` user and pre-authorized SSH key.
+- Use `make init` before the first Terraform run, then `make apply`; `make apply` first creates host OVS bridges through `sudo ovs-vsctl`/`ovs-ofctl`.
+- Host prerequisites that are easy to miss: running `libvirtd`, running `openvswitch`, a `default` libvirt storage pool, and passwordless sudo for `/usr/bin/ovs-vsctl` and `/usr/bin/ovs-ofctl`.
+- `make destroy` deletes snapshots first, runs `terraform destroy`, then removes the host OVS bridges; do not expect Terraform alone to own the OVS bridge lifecycle.
+- `LIBVIRT_URI` controls Makefile `virsh`; Terraform has a separate `libvirt_uri` variable, both default to `qemu:///system`.
 
-SEAPATH Virtual Sandbox provisions a 3-node SEAPATH cluster on QEMU/KVM for local development and testing. It uses Terraform (dmacvicar/libvirt provider) to create the VMs and networks, and relies on the [SEAPATH Ansible repo](https://github.com/seapath/ansible.git) for cluster configuration.
+## Ansible Setup
+- Prepare the external Ansible repo with `./prepare.sh` before `make ansible-*`.
+- Useful targets: `make ansible-ping`, `make ansible-setup-network`, `make ansible-setup-ceph`, `make ansible-setup-ha`, `make ansible-setup`, and `make ansible-grow-rootfs`.
+- Pass focused Ansible flags with `ANSIBLE_OPTS`, for example `make ansible-setup ANSIBLE_OPTS='-v --check'`.
+- The Ceph target runs `playbooks/cluster_setup_cephadm.yaml` in the external Ansible repo; older docs or habits may mention `cluster_setup_ceph.yaml`.
 
-## Repository Structure
+## Networking Gotchas
+- The admin network is NAT `192.168.100.0/24`; nodes are `192.168.100.101`-`103` via Terraform DHCP host reservations.
+- The cluster network is a 3-segment OVS-backed ring, not Linux bridges; Linux bridges drop STP BPDUs and break guest OVS RSTP/Ceph quorum.
+- Current inventory interface names are `enp1s0` for admin and `enp2s0`/`enp3s0` for `team0_0`/`team0_1`. Some Terraform/XSLT comments still mention `enp0s3`-`enp0s5`; trust `inventory/seapath-sandbox.yaml` when editing Ansible wiring.
+- Ring IPs are static in inventory: node1 `192.168.55.1`, node2 `192.168.55.2`, node3 `192.168.55.3`.
 
-```
-.
-├── Makefile                      # Convenience targets for Terraform and Ansible
-├── README.md
-├── .cqfdrc                       # cqfd flavors (containerised workflow)
-├── .cqfd/docker/Dockerfile       # Debian 12 + terraform + ansible 2.16 + libvirt-clients
-├── terraform.tfvars.example      # Copy to terraform/terraform.tfvars and edit
-├── terraform/
-│   ├── providers.tf              # Terraform + dmacvicar/libvirt ~0.8
-│   ├── variables.tf              # All input variables with defaults
-│   ├── networks.tf               # Admin NAT network + 3 isolated ring segments
-│   ├── volumes.tf                # Base image, 3 CoW OS disks, 3 OSD disks
-│   ├── nodes.tf                  # 3 VM domains with NIC wiring and PCI slot XSLT
-│   ├── outputs.tf                # IPs, SSH commands, console commands
-│   └── xslt/
-│       ├── admin-network.xsl.tftpl   # Injects DHCP MAC reservations into libvirt XML
-│       └── domain-pci.xsl            # Fixes NIC PCI slots for predictable iface names
-└── inventory/
-    ├── seapath-sandbox.yaml      # Ansible inventory (3-node cluster)
-    └── group_vars/
-        └── all.yml               # StrictHostKeyChecking=no for sandbox VMs
-```
+## Fencing
+- Host STONITH uses `fence_virtd` listening on TCP port `1229`; run `sudo ./scripts/fence-setup-host.sh` for host setup on Fedora/Ubuntu/Debian.
+- VM key setup is `make fence-setup`, then rerun `make ansible-setup-ha`; after `terraform destroy && make apply`, push the key again.
+- The shared key is `keys/fence_virt.key` locally and `/etc/cluster/fence_virt.key` in VMs; it is gitignored.
 
-## External Dependency: SEAPATH Ansible Repo
-
-This sandbox does **not** contain Ansible playbooks or roles. It expects the [seapath/ansible](https://github.com/seapath/ansible.git) repo to be cloned as a sibling directory (`../ansible`). The `ANSIBLE_REPO` Makefile variable can override this path.
-
-## Key Design Decisions
-
-### Network topology
-- **Admin network**: libvirt NAT (`192.168.100.0/24`). DHCP reservations are injected via XSLT because the dmacvicar/libvirt provider does not support `<host>` entries natively.
-- **Cluster ring**: 3 isolated L2 segments (`mode = "none"`) wiring the nodes in an OVS RSTP ring. No DHCP, no IP addressing at the libvirt level — Ansible assigns cluster IPs statically.
-
-### Predictable guest interface names
-An XSLT transform (`xslt/domain-pci.xsl`) injects fixed PCI slot addresses onto the NICs so the guest OS always sees `enp0s3`/`enp0s4`/`enp0s5`, regardless of libvirt's default ordering. Slot assignments: `0x03` = admin, `0x04` = team0\_0, `0x05` = team0\_1.
-
-### Inventory differences from a physical cluster
-- `ceph_osd_disk: "/dev/vdb"` — virtio disk, no PCI path needed
-- `osd memory target: 4294967296` — 4 GiB (halved from the 8 GiB production default)
-- `isolcpus: ""` — no CPU isolation in VMs
-- `ptp_interface` omitted — no PTP hardware available
-- `ansible_ssh_extra_args` disables strict host key checking (host keys change on `terraform destroy`)
-
-## Common Tasks
-
-**Provision VMs:**
-```bash
-cp terraform.tfvars.example terraform/terraform.tfvars
-# edit terraform/terraform.tfvars — set base_image_path
-make init && make apply
-```
-
-**Run Ansible phases:**
-```bash
-make ansible-ping            # connectivity check
-make ansible-setup-network   # calls seapath_setup_network.yaml
-make ansible-setup-ceph      # calls cluster_setup_ceph.yaml
-make ansible-setup-ha        # calls cluster_setup_ha.yaml
-make ansible-setup           # full setup via seapath_setup_main.yaml
-```
-
-**Destroy everything:**
-```bash
-make destroy
-```
-
-**Set up STONITH fencing:**
-```bash
-# 1. Install and start fence_virtd on the host (one-time)
-sudo ./scripts/fence-setup-host.sh
-
-# 2. Generate shared key and push it to VMs
-make fence-setup
-
-# 3. Re-run HA setup to create stonith resources in Pacemaker
-make ansible-setup-ha
-```
-
-Fencing uses `fence_virt` inside the VMs communicating with `fence_virtd` on
-the host via TCP (port 1229) authenticated by a shared key (`keys/fence_virt.key`,
-gitignored). The inventory already includes `extra_crm_cmd_to_run` that creates
-three `stonith:fence_virt` primitives (one per node) and sets
-`stonith-enabled=true`. The shared key must be re-pushed to VMs after
-`terraform destroy && make apply`.
-
-The `configure_ha` role from the SEAPATH Ansible repo runs
-`crm -d config load update -` with the content of `extra_crm_cmd_to_run`.
-Because `configure_ha_disable_stonith: false` is set in the inventory, the
-role does not force `stonith-enabled=false` on first setup.
-
-## Containerised workflow (cqfd)
-
-`.cqfdrc` defines flavors so the host only needs `libvirtd` + Docker/Podman.
-The container image (`.cqfd/docker/Dockerfile`) ships Terraform, ansible-core
-2.16, `libvirt-clients`, and the Python deps required by the SEAPATH ansible
-repo's `prepare.sh`.
-
-Flavors:
-- `terraform` — `terraform init && terraform apply -auto-approve`
-- `ansible` — clones `${ANSIBLE_URL:-seapath/ansible}` to `${ANSIBLE_REPO:-./ansible}`, checks out `${ANSIBLE_REF:-main}`, runs `prepare.sh`
-- `apply` / `destroy` / `setup` / `ping` — wrap the matching Make targets
-
-The shared `docker_run_args` mount the libvirt socket, `/var/lib/libvirt/images`,
-and `~/.ssh` (read-only), all with `:z` SELinux labels, and use `--network host`
-so the container can reach the admin NAT. Because cqfd only mounts the project
-directory, the ansible repo defaults to `./ansible` (also the Makefile default)
-rather than `../ansible`.
-
-## Linting / Validation
-
-Terraform files can be validated with:
-```bash
-cd terraform && terraform fmt -check && terraform validate
-```
-
-Ansible inventory can be checked with (from the ansible repo):
-```bash
-ansible-lint -c ansible-lint.conf ../seapath-virtual-sandbox/inventory/seapath-sandbox.yaml
-```
+## Validation
+- Terraform-only check: `cd terraform && terraform fmt -check && terraform validate`.
+- Inventory linting must be run from the external Ansible repo, for example `ansible-lint -c ansible-lint.conf ../seapath-virtual-sandbox/inventory/seapath-sandbox.yaml`.
