@@ -1,4 +1,4 @@
-# SEAPATH Virtual Sandbox
+# SEAPATH virtual-cluster
 
 A fully virtual 3-node SEAPATH cluster running on QEMU/KVM, for local development and testing without physical hardware.
 
@@ -20,7 +20,7 @@ A fully virtual 3-node SEAPATH cluster running on QEMU/KVM, for local developmen
 
 ```bash
 # 1. Clone this repo and the SEAPATH Ansible repo as siblings
-git clone https://github.com/dupremathieu/seapath-virtual-sandbox.git
+git clone https://github.com/seapath/virtual-cluster.git
 git clone https://github.com/seapath/ansible.git
 
 # 2. Install Ansible dependencies from the Ansible repo
