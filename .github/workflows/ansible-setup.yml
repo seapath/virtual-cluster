@@ -157,8 +157,10 @@ jobs:
           ANSIBLE_REF: ${{ inputs.ansible_ref }}
         run: |
           set -euxo pipefail
-          git clone --depth=1 --branch "$ANSIBLE_REF" "$ANSIBLE_REPO_URL" ansible
-          cd ansible && ./prepare.sh
+          git clone "$ANSIBLE_REPO_URL" ansible
+          cd ansible
+          git checkout "$ANSIBLE_REF"
+          ./prepare.sh
 
       - name: Terraform init + apply (provision VMs)
         run: sg libvirt -c 'make init && make apply'
