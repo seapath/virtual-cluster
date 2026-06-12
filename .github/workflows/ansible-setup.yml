@@ -26,9 +26,6 @@ on:
 jobs:
   ansible-setup:
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: virtual-cluster
     timeout-minutes: 90
     env:
       LIBVIRT_DEFAULT_URI: qemu:///system
@@ -36,12 +33,15 @@ jobs:
       TF_CLI_ARGS_apply: "-auto-approve"
       TF_IN_AUTOMATION: "1"
       IMAGE_FILENAME: seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2
+      ANSIBLE_REPO: "${{ github.workspace }}"
+      VIRTUAL_CLUSTER_REPO: "${{ github.workspace }}/virtual-cluster"
     steps:
       - uses: actions/checkout@v4
-        with:
-          repository: seapath/virtual-cluster
-          ref: main
-          path: virtual-cluster
+
+      - name: Clone virtual-cluster repository
+        run : |
+          git clone https://github.com/seapath/virtual-cluster.git
+
       - name: Install system dependencies
         run: |
           set -euxo pipefail
@@ -129,17 +129,17 @@ jobs:
           IMAGE_URL: ${{ inputs.image_url }}
           IMAGE_FILENAME: ${{ inputs.image_filename }}
         run: |
-          mkdir -p images
+          mkdir -p $VIRTUAL_CLUSTER_REPO/images
           wget $IMAGE_URL \
-          -O "images/$IMAGE_FILENAME"
-          sudo chmod a+r "images/$IMAGE_FILENAME"
+          -O "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
+          sudo chmod a+r "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
 
       - name: Write terraform.tfvars
         run: |
-          cat > terraform/terraform.tfvars <<EOF
-          base_image_path = "${{ github.workspace }}/virtual-cluster/images/$IMAGE_FILENAME"
+          cat > $VIRTUAL_CLUSTER_REPO/terraform/terraform.tfvars <<EOF
+          base_image_path = "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
           EOF
-          cat terraform/terraform.tfvars
+          cat $VIRTUAL_CLUSTER_REPO/terraform/terraform.tfvars
 
       - name: Install SSH private key for ansible user
         run: |
@@ -157,16 +157,18 @@ jobs:
           ANSIBLE_REF: ${{ inputs.ansible_ref }}
         run: |
           set -euxo pipefail
-          git clone "$ANSIBLE_REPO_URL" ansible
-          cd ansible
-          git checkout "$ANSIBLE_REF"
+          cd $ANSIBLE_REPO
           ./prepare.sh
 
       - name: Terraform init + apply (provision VMs)
-        run: sg libvirt -c 'make init && make apply'
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make init && make apply'
 
       - name: Start VMs and networks
-        run: sg libvirt -c 'make start'
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make start'
 
       - name: Wait for SSH on all nodes
         run: |
@@ -187,14 +189,19 @@ jobs:
             done
 
       - name: Grow root partition and filesystem
-        run: sg libvirt -c 'make ansible-grow-rootfs'
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-grow-rootfs'
 
       - name: ansible-ping
-        run: sg libvirt -c 'make ansible-ping'
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-ping'
 
       - name: ansible-setup
-        run: sg libvirt -c 'make ansible-setup'
-
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-setup'
 
       - name: Diagnostics on failure
         if: failure()
