@@ -1,6 +1,6 @@
 TERRAFORM_DIR := terraform
-INVENTORY     := inventory/seapath-sandbox.yaml
-
+HYPERVISORS_INVENTORY     := inventory/seapath-sandbox.yaml
+VM_INVENTORY := inventory/seapath-test-vm.yaml
 # Path to a local clone of https://github.com/seapath/ansible.git
 # Default: ./ansible (cqfd-friendly). Override with ANSIBLE_REPO=<path>.
 ANSIBLE_REPO  ?= ./ansible
@@ -155,7 +155,7 @@ ansible-ping:
 	@count=0; \
 	while [ "$$count" -lt $(ANSIBLE_PING_RETRIES) ] || [ "$(ANSIBLE_PING_RETRIES)" -eq 0 ]; do \
 		if [ "$$count" -gt 0 ]; then echo "Retrying in $(ANSIBLE_PING_DELAY)s (attempt $$count/$(ANSIBLE_PING_RETRIES))..."; fi; \
-		ansible all -i $(INVENTORY) -m ping $(ANSIBLE_OPTS) && exit 0; \
+	ansible all -i $(HYPERVISORS_INVENTORY) -m ping $(ANSIBLE_OPTS) && exit 0; \
 		sleep $(ANSIBLE_PING_DELAY); \
 		count=$$((count + 1)); \
 	done; \
@@ -163,19 +163,20 @@ ansible-ping:
 	exit 1
 
 ansible-setup:
-	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(INVENTORY) playbooks/seapath_setup_main.yaml $(ANSIBLE_OPTS)
+	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) playbooks/seapath_setup_main.yaml $(ANSIBLE_OPTS)
 
 ansible-setup-network:
-	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(INVENTORY) playbooks/seapath_setup_network.yaml $(ANSIBLE_OPTS)
+	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) playbooks/seapath_setup_network.yaml $(ANSIBLE_OPTS)
 
 ansible-setup-ceph:
-	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(INVENTORY) playbooks/cluster_setup_cephadm.yaml $(ANSIBLE_OPTS)
+	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) playbooks/cluster_setup_cephadm.yaml $(ANSIBLE_OPTS)
 
 ansible-setup-ha:
-	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(INVENTORY) playbooks/cluster_setup_ha.yaml $(ANSIBLE_OPTS)
+	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) playbooks/cluster_setup_ha.yaml $(ANSIBLE_OPTS)
 
 ansible-grow-rootfs:
-	ansible-playbook -i $(INVENTORY) playbooks/grow-rootfs.yaml $(ANSIBLE_OPTS)
+	ansible-playbook -i $(HYPERVISORS_INVENTORY) playbooks/grow-rootfs.yaml $(ANSIBLE_OPTS)
+
 
 ## STONITH fencing (fence_virt + fence_virtd on host)
 fence-key-gen:
