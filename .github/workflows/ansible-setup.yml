@@ -221,6 +221,10 @@ jobs:
           cd $VIRTUAL_CLUSTER_REPO
           sg libvirt -c 'make ansible-setup'
 
+      - name: Deploy a VM in the SEAPATH cluster
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-deploy-vm'
       - name: Diagnostics on failure
         if: failure()
         run: |
