@@ -104,6 +104,7 @@ mons:
     ntp_service_enabled: false
     force_cephadm: true
     dashboard_enabled: false
+    skip_cyclictest: true
     ceph_conf_overrides:
       global:
         osd_pool_default_size: "{{ groups['hypervisors'] | length }}"
