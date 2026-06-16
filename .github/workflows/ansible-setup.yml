@@ -66,7 +66,7 @@ jobs:
             sshpass \
             netcat-openbsd \
             s3cmd \
-            jq curl gnupg lsb-release \
+            xmlstarlet jq curl gnupg lsb-release \
             fence-virt fence-virtd
           # SEAPATH's prepare.sh requires ansible-core 2.16 exactly
           python3 -m pip install --break-system-packages \
@@ -225,6 +225,27 @@ jobs:
         run: |
           cd $VIRTUAL_CLUSTER_REPO
           sg libvirt -c 'make ansible-deploy-vm'
+
+      - name: Run Cukinia tests on all hypervisor nodes
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-cukinia-tests'
+
+      - name: Check Cukinia tests results
+        # NOTE: Tests 109, 28, 31 and 32 are not compatible in a
+        # virtualized environment, so ignore their result.
+        run: |
+          set -euxo pipefail
+          cd $ANSIBLE_REPO
+          xmlstarlet sel -t -m '//testcase[failure]' -v \
+          'concat(properties/property[@name="cukinia.id"]/@value, " | ", @classname, " | ", @name)'  -n cukinia_node*.xml | \
+          grep -Ev '^SEAPATH-(00109|00028|00031|00032)\b' > test_results || true
+
+          if grep -qE 'SEAPATH-[0-9]{5}' test_results; then
+            echo "Cukinia test fails"
+            exit 1
+          fi
+
       - name: Diagnostics on failure
         if: failure()
         run: |
