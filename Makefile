@@ -38,6 +38,7 @@ FENCE_KEY_REMOTE := /etc/cluster/fence_virt.key
         ansible-ping ansible-setup \
         ansible-setup-network ansible-setup-ceph ansible-setup-ha \
         ansible-grow-rootfs \
+		ansible-deploy-vm \
         fence-key-gen fence-key-push fence-virtd-config fence-setup \
         help
 
@@ -177,6 +178,10 @@ ansible-setup-ha:
 ansible-grow-rootfs:
 	ansible-playbook -i $(HYPERVISORS_INVENTORY) playbooks/grow-rootfs.yaml $(ANSIBLE_OPTS)
 
+ansible-deploy-vm:
+	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) -i $(CURDIR)/$(VM_INVENTORY) \
+	-e vm_disk=$(CURDIR)/images/$(VM_IMAGE_FILENAME) \
+	playbooks/deploy_vms_cluster.yaml $(ANSIBLE_OPTS)
 
 ## STONITH fencing (fence_virt + fence_virtd on host)
 fence-key-gen:
