@@ -13,15 +13,25 @@ on:
         required: false
         default: "main"
         type: string
-      image_url:
+      hypervisor_image_url:
         description: "URL of the SEAPATH hypervisor image to fetch"
         required: false
         default: "https://releases.seapath.org/builds/test-virtual-cluster/seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2"
         type: string
-      image_filename:
+      hypervisor_image_filename:
         description: "Name of the SEAPATH hypervisor image"
         required: false
         default: "seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2"
+        type: string
+      vm_image_url:
+        description: "URL of the SEAPATH VM image to fetch"
+        required: false
+        default: "https://releases.seapath.org/builds/v2.0.0/seapath-v2.0.0-guest-efi-image.rootfs.wic.qcow2"
+        type: string
+      vm_image_filename:
+        description: "Name of the SEAPATH VM image"
+        required: false
+        default: "seapath-v2.0.0-guest-efi-image.rootfs.wic.qcow2"
         type: string
 jobs:
   ansible-setup:
@@ -32,7 +42,8 @@ jobs:
       ANSIBLE_HOST_KEY_CHECKING: "False"
       TF_CLI_ARGS_apply: "-auto-approve"
       TF_IN_AUTOMATION: "1"
-      IMAGE_FILENAME: seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2
+      HYPERVISOR_IMAGE_FILENAME: seapath-host-efi-image-seapath-hypervisor.rootfs.wic.qcow2
+      VM_IMAGE_FILENAME: seapath-v2.0.0-guest-efi-image.rootfs.wic.qcow2
       ANSIBLE_REPO: "${{ github.workspace }}"
       VIRTUAL_CLUSTER_REPO: "${{ github.workspace }}/virtual-cluster"
     steps:
@@ -126,18 +137,25 @@ jobs:
 
       - name: Fetch base image from S3
         env:
-          IMAGE_URL: ${{ inputs.image_url }}
-          IMAGE_FILENAME: ${{ inputs.image_filename }}
+          HYPERVISOR_IMAGE_URL: ${{ inputs.hypervisor_image_url }}
+          HYPERVISOR_IMAGE_FILENAME: ${{ inputs.hypervisor_image_filename }}
+          VM_IMAGE_URL: ${{ inputs.vm_image_url }}
+          VM_IMAGE_FILENAME: ${{ inputs.vm_image_filename }}
         run: |
           mkdir -p $VIRTUAL_CLUSTER_REPO/images
-          wget $IMAGE_URL \
-          -O "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
-          sudo chmod a+r "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
+          wget $HYPERVISOR_IMAGE_URL \
+          -O "$VIRTUAL_CLUSTER_REPO/images/$HYPERVISOR_IMAGE_FILENAME"
+
+          wget $VM_IMAGE_URL \
+          -O "$VIRTUAL_CLUSTER_REPO/images/$VM_IMAGE_FILENAME"
+
+          sudo chmod a+r "$VIRTUAL_CLUSTER_REPO/images/$HYPERVISOR_IMAGE_FILENAME"
+          sudo chmod a+r "$VIRTUAL_CLUSTER_REPO/images/$VM_IMAGE_FILENAME"
 
       - name: Write terraform.tfvars
         run: |
           cat > $VIRTUAL_CLUSTER_REPO/terraform/terraform.tfvars <<EOF
-          base_image_path = "$VIRTUAL_CLUSTER_REPO/images/$IMAGE_FILENAME"
+          base_image_path = "$VIRTUAL_CLUSTER_REPO/images/$HYPERVISOR_IMAGE_FILENAME"
           EOF
           cat $VIRTUAL_CLUSTER_REPO/terraform/terraform.tfvars
 
