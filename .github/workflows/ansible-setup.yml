@@ -246,6 +246,11 @@ jobs:
             exit 1
           fi
 
+      - name: Test VM migration
+        run: |
+          cd $VIRTUAL_CLUSTER_REPO
+          sg libvirt -c 'make ansible-vm-migration'
+
       - name: Diagnostics on failure
         if: failure()
         run: |
