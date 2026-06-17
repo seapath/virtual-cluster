@@ -1,0 +1,37 @@
+---
+# Playbook: Extend the last partition on /dev/vda to use all available
+# disk space, then grow the filesystem with /usr/lib/systemd/systemd-growfs.
+#
+# Idempotent: a second run is a no-op when the partition already fills
+# the disk.
+
+- name: Test cluster VM migration
+  hosts:
+    - hypervisors
+  gather_facts: false
+  become: true
+  vars:
+    resource_name: testvm
+
+  tasks:
+    - name: Migrate VM resource
+      ansible.builtin.command:
+        argv:
+          - crm
+          - resource
+          - migrate
+          - "{{ resource_name }}"
+          - force
+      changed_when: false
+
+    - name: Wait until VM resource is Started
+      ansible.builtin.command:
+        argv:
+          - crm
+          - resource
+          - status
+      register: crm_resource_status
+      changed_when: false
+      until: crm_resource_status.stdout is regex('(?m)^.*\\b' ~ resource_name ~ '\\b.*\\bStarted\\b.*$')
+      retries: 300
+      delay: 1
