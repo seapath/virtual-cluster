@@ -40,6 +40,7 @@ FENCE_KEY_REMOTE := /etc/cluster/fence_virt.key
         ansible-grow-rootfs \
 		ansible-deploy-vm \
 		ansible-cukinia-tests \
+		ansible-vm-migration \
         fence-key-gen fence-key-push fence-virtd-config fence-setup \
         help
 
@@ -187,6 +188,9 @@ ansible-deploy-vm:
 ansible-cukinia-tests:
 	cd $(ANSIBLE_REPO) && ansible-playbook -i $(CURDIR)/$(HYPERVISORS_INVENTORY) \
 	playbooks/test_run_cukinia $(ANSIBLE_OPTS)
+
+ansible-vm-migration:
+	ansible-playbook -i $(HYPERVISORS_INVENTORY) playbooks/migrate-vm.yaml $(ANSIBLE_OPTS)
 
 ## STONITH fencing (fence_virt + fence_virtd on host)
 fence-key-gen:
