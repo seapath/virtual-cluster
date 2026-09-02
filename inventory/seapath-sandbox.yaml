@@ -109,7 +109,7 @@ mons:
       global:
         osd_pool_default_size: "{{ groups['hypervisors'] | length }}"
         osd_pool_default_min_size: 1
-        pg_autoscale_mode: "on"
+        osd_pool_default_pg_autoscale_mode: "on"
         osd_crush_chooseleaf_type: 1
         mon_osd_min_down_reporters: 1
       mon:
