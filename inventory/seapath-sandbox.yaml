@@ -55,6 +55,9 @@ hypervisors:
   vars:
     isolcpus: ""  # No CPU isolation in the sandbox
     livemigration_user: libvirtadmin
+    # Live migration runs over qemu+ssh as livemigration_user, which opens the
+    # target's local libvirt socket. A non-root user needs it to be enabled.
+    configure_libvirt_allow_non_root_libvirt_socket_access: true
 
 # No observers in the sandbox
 observers:
