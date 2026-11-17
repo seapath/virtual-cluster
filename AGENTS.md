@@ -8,7 +8,7 @@
 
 ## Provisioning Flow
 - Create `terraform/terraform.tfvars` from `terraform.tfvars.example`; `base_image_path` is required and must point to a SEAPATH qcow2 with an `ansible` user and pre-authorized SSH key.
-- Use `make init` before the first Terraform run, then `make apply`; `make apply` first creates host OVS bridges through `sudo ovs-vsctl`/`ovs-ofctl`.
+- Use `make init` before the first Terraform run, then `make apply`; `make apply` first creates host OVS bridges through `sudo ovs-vsctl`.
 - Host prerequisites that are easy to miss: running `libvirtd`, running `openvswitch`, a `default` libvirt storage pool, and passwordless sudo for `/usr/bin/ovs-vsctl` and `/usr/bin/ovs-ofctl`.
 - `make destroy` deletes snapshots first, runs `terraform destroy`, then removes the host OVS bridges; do not expect Terraform alone to own the OVS bridge lifecycle.
 - `LIBVIRT_URI` controls Makefile `virsh`; Terraform has a separate `libvirt_uri` variable, both default to `qemu:///system`.
@@ -23,6 +23,7 @@
 ## Networking Gotchas
 - The admin network is NAT `192.168.100.0/24`; nodes are `192.168.100.101`-`103` via Terraform DHCP host reservations.
 - The cluster network is a 3-segment OVS-backed ring, not Linux bridges; Linux bridges drop STP BPDUs and break guest OVS RSTP/Ceph quorum.
+- The host bridges forward BPDUs through `other_config:forward-bpdu=true`, stored in the OVS database. Do not replace it with an `ovs-ofctl` flow: flows are lost when `ovs-vswitchd` restarts (host reboot, package update), the guest RSTP then never blocks a port, the ring loops and Ceph monitors never join the quorum.
 - Current inventory interface names are `enp1s0` for admin and `enp2s0`/`enp3s0` for `team0_0`/`team0_1`. Some Terraform/XSLT comments still mention `enp0s3`-`enp0s5`; trust `inventory/seapath-sandbox.yaml` when editing Ansible wiring.
 - Ring IPs are static in inventory: node1 `192.168.55.1`, node2 `192.168.55.2`, node3 `192.168.55.3`.
 

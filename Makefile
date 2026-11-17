@@ -66,8 +66,8 @@ ovs-setup:
 	@for br in $(OVS_BRIDGES); do \
 		echo "Ensuring OVS bridge $$br..."; \
 		sudo ovs-vsctl --may-exist add-br $$br \
-			-- set bridge $$br stp_enable=false rstp_enable=false; \
-		sudo ovs-ofctl add-flow $$br 'priority=100,dl_dst=01:80:c2:00:00:00,actions=FLOOD'; \
+			-- set bridge $$br stp_enable=false rstp_enable=false \
+			other_config:forward-bpdu=true; \
 	done
 
 ovs-teardown:
